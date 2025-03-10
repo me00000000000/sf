@@ -1,0 +1,344 @@
+#!/usr/bin/bash
+
+source /etc/os-release
+
+# change here if you want to fake your distro
+# NAME="Distro Name"
+
+echo $1 | grep -q P && {
+    _NAME="penguin"
+    color=7
+}
+
+case $NAME in
+    "Arch Linux") 
+    test -z $color && color=39
+    packages="Packages: $(tput sgr0)$(pacman -Qqe | wc -l), $(pacman -Qq | wc -l) total$(tput setaf "$color")"
+    ;;
+    "Artix Linux")
+    test -z $color && color=6
+    packages="Packages: $(tput sgr0)$(pacman -Qqe | wc -l), $(pacman -Qq | wc -l) total$(tput setaf "$color")"
+    ;;
+    "Debian GNU/Linux") 
+    test -z $color && color=1
+    packages="Packages: $(tput sgr0)$(dpkg-query -l | grep ^ii | awk '{print $2}' | wc -l)$(tput setaf 1)"
+    ;;
+    "Void") 
+    test -z $color && color=42
+    packages="Packages: $(tput sgr0)$(xbps-query -m | wc -l), $(xbps-query -l | wc -l) total$(tput setaf $color)"
+    ;;
+    "NixOS") 
+    test -z $color && color=7
+    packages="Packages: $(tput sgr0)$(nix-env -q | wc -l), $(nix-store --query --requisites /run/current-system/ | sort -u | wc -l) total$(tput setaf $color)"
+    ;;
+    "openSUSE"*) 
+    test -z $color && color=2
+    packages="Packages: $(tput sgr0)$(zypper search --installed-only | grep 'i+' | wc -l), $(zypper search --installed-only | wc -l) total$(tput setaf $color)"
+	;;
+    "Fedora"*) 
+    test -z $color && color=27
+    packages="Packages: $(tput sgr0)$(dnf repoquery --userinstalled | wc -l), $(rpm -qa | wc -l) total$(tput setaf $color)"
+    ;;    
+    *)
+    test -z $color && color=2
+    packages="Packages: $(tput sgr0)unknown$(tput setaf $color)"
+    ;;
+esac
+
+if [[ $_NAME = "penguin" ]]; then
+    NAME=$_NAME
+fi
+
+get_gpu () {
+     lspci | grep -i 'VGA' | awk -F': ' '{print $2}' | sed 's/(rev ..)//g' | head -n1 | sed -n 's/.*\[\(.*\)\].*/\1/p'
+}
+
+get_shell () {
+    parent_process=$(ps -o comm= -p $(ps -o ppid= -p $$))
+    case "$parent_process" in
+        "bash") echo "Bourne Again shell";;
+        "dash")echo "Almquist shell";;
+        "zsh") echo "Z shell";;
+        "tcsh") echo "TENEX C shell";;
+        "csh") echo "C shell";;
+        "ksh") echo "Korn shell";;
+        "fish")echo "Friendly Interactive";;
+        *)echo "$parent_process";;
+    esac
+}
+
+hostname="Hostname: $(tput sgr0)$(cat /sys/devices/virtual/dmi/id/product_family)$(tput setaf $color)"
+os_release="Release: $(tput sgr0)$PRETTY_NAME$(tput setaf $color)"
+desktop="Desktop: $(tput sgr0)$(xprop -id $(xprop -root -notype | awk '$1=="_NET_SUPPORTING_WM_CHECK:"{print $5}') -notype -f _NET_WM_NAME 8t | grep "WM_NAME" | cut -f2 -d \")$(tput setaf $color)"
+kernel="Kernel: $(tput sgr0)$(uname -r)$(tput setaf $color)"
+uptime="Uptime: $(tput sgr0)$(uptime -p | sed 's/up //g')$(tput setaf $color)"
+shell="Shell: $(tput sgr0)$(get_shell)$(tput setaf $color)"
+term="Term: $(tput sgr0)$(echo $TERM)$(tput setaf $color)"
+disk="Disk: $(tput sgr0)$(echo $(df -h | awk '/\/$/ {print $3 "/" $2 " (" $5 ")" }'))$(tput setaf $color)"
+ram="RAM: $(tput sgr0)$(free --mega | awk '/^Mem:/ {print $3 "MB" "/" $2 "MB (" int(100*$3/$2) "%)" }') "$(tput setaf $color)""
+cpu="CPU: $(tput sgr0)$(echo $(grep -m1 'model name' /proc/cpuinfo | awk -F': ' '{print $2}' | sed 's/with.*$//'))$(tput setaf $color)"
+gpu="GPU: $(tput sgr0)$(get_gpu)$(tput setaf $color)"
+# battery="Battery: $(tput sgr0)$(acpi -b)$(tput setaf $color)"
+
+element=(
+  "$hostname"
+  "$os_release"
+  "$desktop"
+  "$packages"
+  "$kernel"
+  "$uptime"
+  "$shell"
+  "$term"
+  "$disk"
+  "$ram"
+  "$cpu"
+  "$gpu"
+  ""
+  "$(for c in $(seq 1 6); do tput setaf $c; echo -n "██"; done; tput sgr0; echo)$(tput setaf $color)"
+)
+
+remove() {
+    new_array=()
+    for item in "${element[@]}"; do
+        if [[ "$item" != "$1" ]]; then
+            new_array+=("$item")
+        fi
+    done
+    element=("${new_array[@]}")
+}
+
+help() {
+    echo "help:
+-P: minimalist penguin
+-h: disable hostname
+-l: disable logo
+-c: disable cpu
+-g: disable gpu
+-d: disable disk
+-r: disable ram
+-s: disable shell
+-p: disable packages
+-k: disable kernel
+-t: disable term
+-w: disable desktop"
+}
+
+logo="true"
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+       -*)
+            arg="${1#-}"
+            for ((i = 0; i < ${#arg}; i++)); do
+                case "${arg:$i:1}" in
+                    v | V) echo "2.1"; exit 0;;
+                    H) remove "$hostname"; shift;;
+                    o) remove "$os_release"; shift;;
+                    t) remove "$term"; shift;;
+                    k) remove "$kernel"; shift;;
+                    p) remove "$packages"; shift;;
+                    s) remove "$shell"; shift;;
+                    c) remove "$cpu"; shift;;
+                    g) remove "$gpu"; shift;;
+                    d) remove "$disk"; shift;;
+                    r) remove "$ram"; shift;;
+                    w) remove "$desktop"; shift;;
+                    l) logo="false"; shift;;
+                    h) help; exit 0;;
+                    P) shift;;
+                    *) echo "unknown option '$i'"; help; exit 1;;
+                esac
+            done 2>/dev/null
+            ;;
+    esac
+done
+
+test -z "$(get_gpu)" && remove "$gpu"
+
+how_many_lines=$(echo $(whoami)$(cat /proc/sys/kernel/hostname) | wc -c)
+
+if [[ "$logo" == "true" ]]; then
+case $NAME in
+    "Arch Linux")
+echo -e "$(tput setaf $color)            
+              +                $(tput bold)$(tput setaf $color)$(whoami)$(tput sgr0)@$(tput sgr0)$(cat /proc/sys/kernel/hostname)$(tput setaf $color) 
+             +++               $(tput sgr0)$(for ((i=0; i<how_many_lines+1; i++)); do printf "%s" "―"; done)$(tput setaf $color)
+            +++++              ${element[0]}
+           +++++++             ${element[1]}
+           ++++++++            ${element[2]}
+         ++ ++++++++           ${element[3]}
+        +++++++++++++          ${element[4]}
+       +++++++++++++++         ${element[5]}
+      +++++++++++++++++        ${element[6]}
+     ++++++++   ++++++ +       ${element[7]}
+    ++++++++     +++++++       ${element[8]}
+   +++++++++     +++++++++     ${element[9]} 
+  ++++                 ++++    ${element[10]} 
+ ++                       ++   ${element[11]} 
++                           +  ${element[12]} 
+$(tput sgr0)";;
+
+    "Artix Linux")
+echo -e "$(tput setaf $color)            
+              x                $(tput bold)$(tput setaf $color)$(whoami)$(tput sgr0)@$(tput sgr0)$(cat /proc/sys/kernel/hostname)$(tput setaf $color)
+             xxx               $(tput sgr0)$(for ((i=0; i<how_many_lines+1; i++)); do printf "%s" "―"; done)$(tput setaf $color)
+            xxxxx              ${element[0]}
+           xxxxxxx             ${element[1]}
+          xxxxxxxxx            ${element[2]}
+            xxxxxxxx           ${element[3]}
+        x      xxxxxx          ${element[4]}
+       xxxxxxx     xxx         ${element[5]}
+      xxxxxxxxxxxx    +        ${element[6]}
+     xxxxxxxxxxxxxxxxxx        ${element[7]}
+    xxxxxxxxxxxxxx     xx      ${element[8]}
+   xxxxxxxxxx      xxxxxxx     ${element[9]} 
+  xxxxxx           xxxxxxxx    ${element[10]} 
+ xxx                     xxx   ${element[11]}
+xx                         xx  ${element[12]}
+$(tput sgr0)";;
+
+    "Debian GNU/Linux") 
+echo -e "$(tput setaf 1)
+          #######          $(tput bold)$(tput setaf 1)$(whoami)$(tput sgr0)@$(tput sgr0)$(cat /proc/sys/kernel/hostname)$(tput setaf 1)            
+      ################     $(tput sgr0)$(for ((i=0; i<how_many_lines+1; i++)); do printf "%s" "―"; done)$(tput setaf 1)             
+    #####           ####   ${element[0]}             
+   ###                ###  ${element[1]}             
+  ##          ###     ###  ${element[2]}             
+ ###        ##    #    ##  ${element[3]}             
+ ##        #       #   ##  ${element[4]}             
+ ##       ##          ##   ${element[5]}             
+ ##        #     #    #    ${element[6]}             
+ ##         ##      ##     ${element[7]}             
+  ##          ####         ${element[8]}             
+   ##                      ${element[9]}             
+    ##                     ${element[10]}             
+     ##                    ${element[11]}             
+       ###                 ${element[12]}              
+          ##             
+$(tput sgr0)";;
+
+    "Void")
+echo -e "
+          $(tput setaf $color)++++++++++          $(tput bold)$(tput setaf $color)$(whoami)$(tput sgr0)@$(tput sgr0)$(cat /proc/sys/kernel/hostname)$(tput setaf $color)
+        +++++++++++++++       $(tput sgr0)$(for ((i=0; i<how_many_lines+1; i++)); do printf "%s" "―"; done)$(tput setaf $color)
+         +++      +++++++     ${element[0]}  
+    ##               +++++    ${element[1]} 
+   #####              +++++   ${element[2]} 
+  #####     ++++++     +++++  ${element[3]} 
+  ####     ++++++++     ++++  ${element[4]} 
+  ####     ++++++++     ++++  ${element[5]} 
+  #####     ++++++     +++++  ${element[6]} 
+   #####              +++++   ${element[7]} 
+    #####               ++    ${element[8]} 
+     #######      ###         ${element[9]} 
+       ###############        ${element[10]}
+          ##########          ${element[11]}
+                              ${element[12]}
+$(tput sgr0)";; 
+
+    "NixOS")
+echo -e "
+       [1;34m*[0m[1;34m*[0m[1;34m*[0m     ****   ***       \e[1m\e[38;5;39m$(whoami)\e[0m@\e[38;5;39m$(cat /proc/sys/kernel/hostname)\e[0m
+        [1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m    ********        \e[0m$(for ((i=0; i<how_many_lines+1; i++)); do printf "%s" "―"; done)\e[38;5;39m
+         [1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m    ******         ${element[0]}
+    [1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m****    [1;34m*[0m[1;34m*[0m    ${element[1]} 
+         ***        ***  [1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m   ${element[2]} 
+        ***          ***[1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m    ${element[3]} 
+ *********            *[1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m ${element[4]} 
+ ********[1;34m*[0m            [1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m ${element[5]} 
+    ****[1;34m*[0m[1;34m*[0m[1;34m*[0m          [1;34m*[0m[1;34m*[0m[1;34m*[0m        ${element[6]} 
+   ****  [1;34m*[0m[1;34m*[0m[1;34m*[0m        [1;34m*[0m[1;34m*[0m[1;34m*[0m         ${element[7]} 
+    **    [1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m**************    ${element[8]} 
+         [1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m    ****         ${element[9]} 
+        [1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m    ****        ${element[10]} 
+       [1;34m*[0m[1;34m*[0m[1;34m*[0m   [1;34m*[0m[1;34m*[0m[1;34m*[0m[1;34m*[0m     ***       ${element[11]}
+                                ${element[12]}
+       ";;
+
+    "openSUSE"*)
+echo -e "
+                                                    $(tput setaf $color)$(tput bold)$(tput setaf $color)$(whoami)$(tput sgr0)@$(tput sgr0)$(cat /proc/sys/kernel/hostname)$(tput setaf $color)
+                       ##########                   $(tput sgr0)$(for ((i=0; i<how_many_lines+1; i++)); do printf "%s" "―"; done)$(tput setaf $color)
+                  ############################      ${element[0]}   
+               ############################# ## #   ${element[1]} 
+            ############################### ### ##  ${element[2]} 
+           ############################## ###  ###  ${element[3]} 
+         ###################################     #  ${element[4]} 
+        ####        ############################    ${element[5]} 
+        ###  ######   ####     ######               ${element[6]} 
+        ### ##    ##  ###         ###               ${element[7]} 
+        ###  ####  ##   #          ###              ${element[8]} 
+         ####    ###                                ${element[9]} 
+   ######  ########      ######   #######           ${element[10]}
+####                  ####       ##      #          ${element[11]}
+###        ##     ##  ###        #### ####          ${element[12]}
+  #######  ##     ##    #######  ##                 
+      ###  ##    ###        ###  ##                
+########   ###### ##  ########    #######          
+$(tput sgr0)";;
+
+	"Fedora"*)
+	BLUE=$(tput setaf $color)
+	WHITE=$(tput setaf 7)
+	RESET=$(tput sgr0)
+echo -e "
+               ${BLUE}############                 $(tput setaf $color)$(tput bold)$(tput setaf $color)$(whoami)$(tput sgr0)@$(tput sgr0)$(cat /proc/sys/kernel/hostname)$(tput setaf $color)      
+          ${BLUE}######################            $(tput sgr0)$(for ((i=0; i<how_many_lines+1; i++)); do printf "%s" "―"; done)$(tput setaf $color)       
+        ${BLUE}##########################          $(tput setaf $color)${element[0]}
+      ${BLUE}##############################        $(tput setaf $color)${element[1]}
+    ${BLUE}##################################      $(tput setaf $color)${element[2]}
+   ${BLUE}##################${WHITE}#########${BLUE}#########     $(tput setaf $color)${element[3]} 
+  ${BLUE}#################${WHITE}#############${BLUE}########    $(tput setaf $color)${element[4]}
+ ${BLUE}##################${WHITE}###${BLUE}#######${RESET}###${BLUE}########    $(tput setaf $color)${element[5]}
+ ${BLUE}##################${WHITE}###${BLUE}#######${RESET}###${BLUE}#########   $(tput setaf $color)${element[6]}
+${BLUE}###################${WHITE}###${BLUE}####################  $(tput setaf $color)${element[8]}
+${BLUE}###################${WHITE}###${BLUE}####################  $(tput setaf $color)${element[9]}
+${BLUE}##########${WHITE}#######${BLUE}##${RESET}########${BLUE}###############  $(tput setaf $color)${element[10]}
+${BLUE}########${WHITE}#########${BLUE}##${RESET}#######${BLUE}################    $(tput setaf $color)${element[11]}
+${BLUE}#######${WHITE}####${BLUE}########${RESET}###${BLUE}###################   $(tput setaf $color)${element[12]}
+${BLUE}#######${WHITE}###${BLUE}#########${RESET}###${BLUE}################### 
+${BLUE}#######${WHITE}###${BLUE}########${RESET}####${BLUE}##################  
+${BLUE}#######${WHITE}#####${BLUE}#####${RESET}####${BLUE}##################   
+${BLUE}#########${WHITE}###########${BLUE}##################   
+${BLUE}###########${WHITE}#######${BLUE}##################     
+${BLUE}##################################     
+${BLUE}################################          
+  ${BLUE}#########################             
+$(tput sgr0)"
+
+;;
+
+    "penguin")
+echo -e "$(tput setaf $color)   
+    .--.        $(tput setaf $color)$(tput bold)$(tput setaf $color)$(whoami)$(tput sgr0)@$(tput sgr0)$(cat /proc/sys/kernel/hostname)$(tput setaf $color)
+   |o_o |       $(tput sgr0)$(for ((i=0; i<how_many_lines+1; i++)); do printf "%s" "―"; done)$(tput setaf $color)
+   |:_/ |       ${element[3]}
+  //   \\ \\      ${element[8]}
+ (|     | )     ${element[9]}
+/\'\\_   _/\`\\    ${element[10]}
+\\___)=(___/     ${element[11]}
+"                     
+                     
+;;                    
+                      
+*)
+esac
+else
+echo -e "
+$(tput setaf $color)$(tput bold)$(tput setaf $color)$(whoami)$(tput sgr0)@$(tput sgr0)$(cat /proc/sys/kernel/hostname)$(tput setaf $color)
+$(tput sgr0)$(for ((i=0; i<how_many_lines+1; i++)); do printf "%s" "―"; done)$(tput setaf $color)
+${element[0]}  
+${element[1]} 
+${element[2]} 
+${element[3]} 
+${element[4]} 
+${element[5]} 
+${element[6]} 
+${element[7]} 
+${element[8]} 
+${element[9]} 
+${element[10]}
+${element[11]}
+${element[12]}
+$(tput sgr0)"
+fi
