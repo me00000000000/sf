@@ -26,6 +26,7 @@ Options:
 ```
 -P: minimalist penguin
 -h: disable hostname
+-o: disable release
 -l: disable logo
 -c: disable cpu
 -g: disable gpu
@@ -37,4 +38,12 @@ Options:
 -t: disable term
 -w: disable desktop
 ```
+
+Example (-P option):
+
+<img src="sf-P.avif" alt="Alt Text" height="200">
+
+Example (default, with -h, -w and -o):
+
+<img src="sf.avif" alt="Alt Text" height="200">
 
