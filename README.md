@@ -1,6 +1,6 @@
-<p align="center">simplefetch</p>
+<h2 align="center">simplefetch</h2>
 
----
+<p align="center">neofetch clone or system information tool</p>
 
 Distributions with logo:
 
@@ -45,5 +45,5 @@ Example (-P option):
 
 Example (default, with -h, -w and -o):
 
-<img src="sf.avif" alt="Alt Text" height="200">
+<img src="sf.avif" alt="Alt Text" height="255">
 
