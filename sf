@@ -109,8 +109,10 @@ remove() {
 
 help() {
     echo "help:
+-h: display this
 -P: minimalist penguin
--h: disable hostname
+-H: disable hostname
+-o: disable release
 -l: disable logo
 -c: disable cpu
 -g: disable gpu
@@ -315,7 +317,7 @@ echo -e "$(tput setaf $color)
    |:_/ |       ${element[3]}
   //   \\ \\      ${element[8]}
  (|     | )     ${element[9]}
-/\'\\_   _/\`\\    ${element[10]}
+/\'\\_   _/\\\     ${element[10]}
 \\___)=(___/     ${element[11]}
 "                     
                      
